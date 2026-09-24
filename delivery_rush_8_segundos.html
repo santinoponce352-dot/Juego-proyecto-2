@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Delivery Rush - 8 segundos</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#101827;color:#f5f7fb}
+.container{max-width:1000px;margin:auto;padding:20px}
+header{display:flex;justify-content:space-between;gap:15px;align-items:center;flex-wrap:wrap}
+h1{margin:0;font-size:32px}.sub{color:#aab4c5;margin-top:5px}
+.stats{display:flex;gap:8px;flex-wrap:wrap}.stat{background:#1b2638;border:1px solid #334158;border-radius:12px;padding:10px 14px;font-weight:bold}
+.timer{font-size:22px}.danger{color:#ff6b6b}
+.mission,.order{background:#182235;border:1px solid #334158;border-radius:15px;padding:15px}
+.mission{margin:18px 0}.mission strong{font-size:18px}
+.bar{height:10px;background:#303b4f;border-radius:20px;margin-top:10px;overflow:hidden}
+.fill{height:100%;width:100%;background:#58a6ff;transition:width .2s linear}
+.controls{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+input,select,button{min-height:44px;border-radius:10px;border:1px solid #3a465b;padding:9px 12px;font-size:15px}
+input,select{background:#182235;color:#fff}input{flex:1;min-width:180px}
+button{background:#24334b;color:white;font-weight:bold;cursor:pointer}
+button:hover{background:#30435f}
+.primary{background:#3478c9!important;border-color:#3478c9}
+.message{height:25px;color:#aab4c5;font-weight:bold}
+.game{display:grid;grid-template-columns:1fr 280px;gap:15px}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:12px}
+.card{background:#182235;border:1px solid #334158;border-radius:15px;padding:13px;display:flex;flex-direction:column;gap:7px}
+.pic{text-align:center;font-size:42px;padding:6px}.name{font-weight:bold}.small{font-size:12px;color:#aab4c5}.price{font-size:18px;font-weight:bold;margin-bottom:3px}
+.order h2{margin-top:0}.picked{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid #334158;font-size:14px}
+.order button{width:100%;margin-top:12px}
+@media(max-width:700px){.game{grid-template-columns:1fr}.container{padding:14px}}
+</style>
+</head>
+<body>
+<div class="container">
+<header>
+  <div>
+    <h1>🚚 Delivery Rush</h1>
+    <div class="sub">¡Completá el pedido antes de que pasen los 8 segundos!</div>
+  </div>
+  <div class="stats">
+    <div class="stat timer">⏱️ <span id="timer">8</span>s</div>
+    <div class="stat">⭐ <span id="score">0</span></div>
+    <div class="stat">📦 <span id="round">1/5</span></div>
+  </div>
+</header>
+
+<section class="mission">
+  <strong id="mission">📦 Pedido #1</strong>
+  <p id="goal">Elegí los productos que pide el cliente.</p>
+  <div class="bar"><div class="fill" id="fill"></div></div>
+</section>
+
+<div class="controls">
+  <input id="search" type="search" placeholder="🔎 Buscar producto...">
+  <select id="filter">
+    <option value="all">Todas las categorías</option>
+    <option value="gaming">Videojuegos</option>
+    <option value="tech">Tecnología</option>
+    <option value="sports">Deportes</option>
+    <option value="music">Música</option>
+  </select>
+  <button id="reset" type="button">🔄 Reiniciar</button>
+</div>
+
+<div class="message" id="message" aria-live="polite"></div>
+
+<div class="game">
+<main><div class="products" id="products"></div></main>
+
+<aside class="order">
+  <h2>📋 Tu pedido</h2>
+  <div id="orderList"></div>
+  <button class="primary" id="deliver" type="button">🚚 Entregar pedido</button>
+</aside>
+</div>
+</div>
+
+<script>
+const products=[
+ {id:1,name:"Auriculares",price:8000,cat:"tech",emoji:"🎧"},
+ {id:2,name:"Joystick",price:12000,cat:"gaming",emoji:"🎮"},
+ {id:3,name:"Mouse",price:6000,cat:"tech",emoji:"🖱️"},
+ {id:4,name:"Pelota",price:7000,cat:"sports",emoji:"⚽"},
+ {id:5,name:"Guitarra",price:15000,cat:"music",emoji:"🎸"},
+ {id:6,name:"Teclado",price:9000,cat:"gaming",emoji:"⌨️"},
+ {id:7,name:"Parlante",price:10000,cat:"music",emoji:"🔊"},
+ {id:8,name:"Camiseta",price:5000,cat:"sports",emoji:"👕"},
+ {id:9,name:"Smartwatch",price:14000,cat:"tech",emoji:"⌚"},
+ {id:10,name:"Balón de básquet",price:7500,cat:"sports",emoji:"🏀"}
+];
+
+const orders=[
+ [1,3],
+ [2,6],
+ [4,8],
+ [7,5],
+ [9,10]
+];
+
+let round=0;
+let score=0;
+let chosen=[];
+let seconds=8;
+let finished=false;
+let timer;
+
+const $=id=>document.getElementById(id);
+const money=n=>"$"+n.toLocaleString("es-AR");
+
+function currentOrder(){
+ return orders[round] || [];
+}
+
+function showMessage(text){
+ $("message").textContent=text;
+}
+
+function render(){
+ const query=$("search").value.toLowerCase();
+ const filter=$("filter").value;
+
+ const visible=products.filter(p=>
+   (!query || p.name.toLowerCase().includes(query)) &&
+   (filter==="all" || p.cat===filter)
+ );
+
+ $("products").innerHTML=visible.map(p=>`
+   <article class="card">
+     <div class="pic">${p.emoji}</div>
+     <div class="name">${p.name}</div>
+     <div class="small">${p.cat}</div>
+     <div class="price">${money(p.price)}</div>
+     <button class="primary add" data-id="${p.id}" type="button">+ Elegir</button>
+   </article>
+ `).join("");
+
+ document.querySelectorAll(".add").forEach(button=>{
+   button.addEventListener("click",()=>choose(Number(button.dataset.id)));
+ });
+
+ $("score").textContent=score;
+ $("round").textContent=Math.min(round+1,5)+"/5";
+ $("timer").textContent=seconds;
+ $("timer").className=seconds<=3 ? "danger" : "";
+
+ if(round<5){
+   $("mission").textContent="📦 Pedido #"+(round+1);
+   $("goal").textContent="Necesitás: "+currentOrder().map(id=>{
+     const p=products.find(x=>x.id===id);
+     return p.emoji+" "+p.name;
+   }).join(" · ");
+ }else{
+   $("mission").textContent="🏆 ¡Juego terminado!";
+   $("goal").textContent="Puntaje final: "+score+" puntos.";
+ }
+
+ $("fill").style.width=(seconds/8*100)+"%";
+
+ $("orderList").innerHTML=chosen.length
+ ? chosen.map(id=>{
+     const p=products.find(x=>x.id===id);
+     return `<div class="picked"><span>${p.emoji} ${p.name}</span><b>${money(p.price)}</b></div>`;
+   }).join("")
+ : '<p class="small">Elegí los productos antes de que termine el tiempo.</p>';
+}
+
+function choose(id){
+ if(finished)return;
+
+ if(chosen.includes(id)){
+   showMessage("Ese producto ya está elegido.");
+   return;
+ }
+
+ chosen.push(id);
+ score+=5;
+ showMessage("✅ ¡Producto agregado! +5 puntos");
+ render();
+}
+
+function nextRound(reason){
+ clearInterval(timer);
+
+ if(round>=5)return;
+
+ if(reason==="time"){
+   showMessage("⏰ ¡Se terminó el tiempo! Cambiaron los productos y el pedido.");
+ }else{
+   score+=20;
+   showMessage("🎉 Pedido correcto. +20 puntos.");
+ }
+
+ round++;
+ chosen=[];
+
+ if(round<5){
+   seconds=8;
+   render();
+   startTimer();
+ }else{
+   finished=true;
+   seconds=0;
+   render();
+   showMessage("🏆 ¡Ganaste! Completaste las 5 rondas con "+score+" puntos.");
+ }
+}
+
+function startTimer(){
+ clearInterval(timer);
+
+ timer=setInterval(()=>{
+   if(finished)return;
+
+   seconds--;
+   render();
+
+   if(seconds<=0){
+     nextRound("time");
+   }
+ },1000);
+}
+
+$("deliver").addEventListener("click",()=>{
+ if(finished)return;
+
+ const needed=currentOrder();
+
+ if(needed.every(id=>chosen.includes(id))){
+   nextRound("done");
+ }else{
+   const missing=needed
+    .filter(id=>!chosen.includes(id))
+    .map(id=>products.find(x=>x.id===id).name);
+
+   showMessage("❌ Te falta: "+missing.join(", "));
+ }
+});
+
+$("reset").addEventListener("click",()=>{
+ clearInterval(timer);
+ round=0;
+ score=0;
+ chosen=[];
+ seconds=8;
+ finished=false;
+ showMessage("🔄 ¡Nueva partida!");
+ render();
+ startTimer();
+});
+
+$("search").addEventListener("input",render);
+$("filter").addEventListener("change",render);
+
+render();
+startTimer();
+</script>
+</body>
+</html>
